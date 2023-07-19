@@ -225,7 +225,7 @@ def split_script(split_params: SplitParameters) -> None:
 
     # Converts all scripts into SmallScript objects
     small_scripts = [SmallScript(scr, initial_script, final_script) for scr in scripts]
-    # print([str(scr) for scr in small_scripts])
+    # DEBUG: print([str(scr) for scr in small_scripts])
 
     # Write everything to files
     for scr in small_scripts:
@@ -273,14 +273,14 @@ def get_parameters_list_from_yaml() -> list[SplitParameters]:
 
     # File of argument has higher priority than file on folder
     yaml_path = yaml_arg_path if yaml_arg_path else YAML_FOLDER_PATH
-    print(yaml_path)
 
     # Checks if at least one of these are true:
     # * File is on the same folder as script
     # * Was it passed as argument and it exists
     if not os.path.exists(yaml_path):
-        raise Exception("YAML config file does not exist.")
+        raise Exception(f"YAML config file ({yaml_path}) does not exist.")
 
+    print(f"YAML path being loaded: {yaml_path}")
     with open(yaml_path, "r") as yaml_stream:
         yaml_obj = yaml.safe_load(yaml_stream)
         print(yaml_obj)
@@ -322,7 +322,6 @@ def get_parameters_from_argv() -> SplitParameters:
 
 
 if __name__ == "__main__":
-    print(sys.argv)
     type_of_parameters = sys.argv[1]
     if type_of_parameters == "yaml":
         yaml_params = get_parameters_list_from_yaml()
