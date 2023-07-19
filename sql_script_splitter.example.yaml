@@ -1,0 +1,7 @@
+# Example file
+
+models_to_split:
+  - scripts_base_path: .
+    initial_script: model_full_script
+    final_script: model
+    drop_intermediate: True
