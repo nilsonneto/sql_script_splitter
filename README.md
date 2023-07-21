@@ -35,7 +35,7 @@ If it is in a different location, just indicate it as an input.
 
 Example:
 ```
-- uses: nilsonneto/sql_script_splitter@main
+- uses: nilsonneto/sql_script_splitter@v1
   with:
     yaml-path: $GITHUB_WORKSPACE/configs/sql_script_splitter.yaml
 
