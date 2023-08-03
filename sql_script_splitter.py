@@ -64,7 +64,7 @@ class SmallScript:
             split_script = new_query.split("\n", 1)
             first = split_script[0].strip()
             # Remove blank lines and commentaries from parsing
-            if first == "" or first.startswith("--"):
+            if first == "" or first.startswith("--") or first.startswith("//"):
                 new_query = split_script[1]
             else:
                 break
@@ -74,7 +74,7 @@ class SmallScript:
             split_script = new_query.rsplit("\n", 1)
             last = split_script[1].strip()
             # Remove blank lines and commentaries from parsing
-            if last == "" or last.startswith("--"):
+            if last == "" or last.startswith("--") or last.startswith("//"):
                 new_query = split_script[0]
             else:
                 break
@@ -134,7 +134,7 @@ def get_individual_scripts_and_dbt_config(base_path: str, base_script: str):
     # Splits based on the `, table as`, with some room for optional comments and spacing
     # That line is kept, some line-breaks are disposed and everything inside the parenthesis
     # Is kept, but in a separate object
-    slices = re.split(r"\n(,.* as.*)\n(?=\()", all)
+    slices = re.split(r"\n(,.* as.*)\n?(?=\()", all)
 
     # First slice works differently
     # It contains DBT Config and first CTE, so they are separated based on the `with` keyword
@@ -231,8 +231,11 @@ def split_script(split_params: SplitParameters) -> None:
     for scr in small_scripts:
         # Replace tables with ref macro
         for ref_script in small_scripts:
-            table_re = re.compile(rf"(?<=(from|join))\s{{1,}}{ref_script.old_name}")
-            scr.content = table_re.sub(ref_script.new_reference, scr.content)
+            scr.content = re.sub(
+                rf"(?<=(from|join))\s{{1,}}{ref_script.old_name}",
+                ref_script.new_reference,
+                scr.content,
+            )
 
         # Add drop statements in last table, if enabled
         if drop_intermediate:
@@ -280,7 +283,7 @@ def get_parameters_list_from_yaml() -> list[SplitParameters]:
     if not os.path.exists(yaml_path):
         raise Exception(f"YAML config file ({yaml_path}) does not exist.")
 
-    print(f"YAML path being loaded: {yaml_path}")
+    print(f"YAML path being loaded: {os.path.abspath(yaml_path)}")
     with open(yaml_path, "r") as yaml_stream:
         yaml_obj = yaml.safe_load(yaml_stream)
         print(yaml_obj)
