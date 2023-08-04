@@ -204,6 +204,70 @@ def dbt_cfg_add_drop(dbt_config: str, scripts: list[SmallScript]) -> str:
     return dbt_config
 
 
+def find_model_path(scripts_base_path: str, model_name: str) -> str:
+    """
+    Searches for a SQL file with the `model_name`
+    in the `scripts_base_path` directory and all others in it, recursevely.
+
+    Returns the file's full path or raises an Exception if file is not found.
+    """
+    desired_model = f"{model_name}.sql"
+    for root, _, files in os.walk(scripts_base_path):
+        if (desired_model) in files:
+            return root
+
+    raise Exception("Model not found")
+
+
+def delete_stale_scripts(path: str, initial: str, final: str) -> None:
+    """
+    Deletes all sql files that are related to the final script, except the initial one.
+    Uses yaml information, so, if the final script name changes,
+    this function might not be able to remove some files.
+    """
+    for obj in os.listdir(path):
+        if obj == f"{initial}.sql":
+            continue
+        elif obj.startswith(final) and obj.endswith(".sql"):
+            os.remove(os.path.join(path, obj))
+
+
+def create_new_script_files(
+    scripts: list[SmallScript],
+    scripts_path: str,
+    drop_intermediate: bool,
+    dbt_config: str,
+) -> None:
+    """
+    Creates files for list of `SmallScript`s at `scripts_path`.
+    If `drop_intermediate` is True, post-hook statements will be added to the DBT config of the final table.
+    """
+    # Enable final model
+    dbt_config = dbt_cfg_enable_table(dbt_config)
+
+    # Write all CTEs and final model
+    for scr in scripts:
+        # Replace tables with ref macro
+        for ref_script in scripts:
+            scr.content = re.sub(
+                rf"(?<=(from|join))\s{{1,}}{ref_script.old_name}",
+                ref_script.new_reference,
+                scr.content,
+            )
+
+        # Add drop statements in last table, if enabled
+        if drop_intermediate:
+            dbt_config = dbt_cfg_add_drop(dbt_config, scripts)
+
+        # Add DBT config to final tables
+        if not scr.is_intermediate:
+            scr.content = dbt_config + "\n" + scr.content
+
+        file_path = os.path.join(scripts_path, f"{scr.new_name}.sql")
+        with open(file_path, "w") as f:
+            f.write(scr.content)
+
+
 def split_script(split_params: SplitParameters) -> None:
     """
     Splits script from `scripts_path` folder, from file `initial_script`.sql, into smaller files.
@@ -215,54 +279,18 @@ def split_script(split_params: SplitParameters) -> None:
     final_script = split_params.final_script
     drop_intermediate = split_params.drop_intermediate
 
-    scripts_path = find_model(scripts_base_path, initial_script)
+    scripts_path = find_model_path(scripts_base_path, initial_script)
     scripts, dbt_config = get_individual_scripts_and_dbt_config(
         scripts_path, initial_script
     )
-
-    # Enable final model
-    dbt_config = dbt_cfg_enable_table(dbt_config)
 
     # Converts all scripts into SmallScript objects
     small_scripts = [SmallScript(scr, initial_script, final_script) for scr in scripts]
     # DEBUG: print([str(scr) for scr in small_scripts])
 
-    # Write everything to files
-    for scr in small_scripts:
-        # Replace tables with ref macro
-        for ref_script in small_scripts:
-            scr.content = re.sub(
-                rf"(?<=(from|join))\s{{1,}}{ref_script.old_name}",
-                ref_script.new_reference,
-                scr.content,
-            )
-
-        # Add drop statements in last table, if enabled
-        if drop_intermediate:
-            dbt_config = dbt_cfg_add_drop(dbt_config, small_scripts)
-
-        # Add DBT config to final tables
-        if not scr.is_intermediate:
-            scr.content = dbt_config + "\n" + scr.content
-
-        file_path = os.path.join(scripts_path, f"{scr.new_name}.sql")
-        with open(file_path, "w") as f:
-            f.write(scr.content)
-
-
-def find_model(scripts_base_path: str, model_name: str) -> str:
-    """
-    Searches for a SQL file with the `model_name`
-    in the `scripts_base_path` directory and all others in it, recursevely.
-
-    Returns either the file's full path or None if file is not found.
-    """
-    desired_model = f"{model_name}.sql"
-    for root, _, files in os.walk(scripts_base_path):
-        if (desired_model) in files:
-            return root
-
-    raise Exception("Model not found")
+    # Remove stale and recreate all script files
+    delete_stale_scripts(scripts_path, initial_script, final_script)
+    create_new_script_files(small_scripts, scripts_path, drop_intermediate, dbt_config)
 
 
 def get_parameters_list_from_yaml() -> list[SplitParameters]:
