@@ -48,6 +48,7 @@ class SmallScript:
         self.new_name = new_name
         self.is_intermediate = is_intermediate
         self.new_reference = f' {{{{ ref("{new_name}") }}}}'
+        self.re_expr = re.compile(rf"(?<=(from|join))\s{{1,}}{old_name}")
 
     def __str__(self):
         return f'{self.old_name} -> {self.new_name} ({"CTE" if self.is_intermediate else "last"}):\n{self.content}'
@@ -249,8 +250,7 @@ def create_new_script_files(
     for scr in scripts:
         # Replace tables with ref macro
         for ref_script in scripts:
-            scr.content = re.sub(
-                rf"(?<=(from|join))\s{{1,}}{ref_script.old_name}",
+            scr.content = ref_script.re_expr.sub(
                 ref_script.new_reference,
                 scr.content,
             )
