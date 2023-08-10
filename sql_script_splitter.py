@@ -48,6 +48,7 @@ class SmallScript:
         self.new_name = new_name
         self.is_intermediate = is_intermediate
         self.new_reference = f' {{{{ ref("{new_name}") }}}}'
+        self.re_expr = re.compile(rf"(?<=(from|join))\s{{1,}}{old_name}")
 
     def __str__(self):
         return f'{self.old_name} -> {self.new_name} ({"CTE" if self.is_intermediate else "last"}):\n{self.content}'
@@ -249,8 +250,7 @@ def create_new_script_files(
     for scr in scripts:
         # Replace tables with ref macro
         for ref_script in scripts:
-            scr.content = re.sub(
-                rf"(?<=(from|join))\s{{1,}}{ref_script.old_name}",
+            scr.content = ref_script.re_expr.sub(
                 ref_script.new_reference,
                 scr.content,
             )
@@ -268,7 +268,7 @@ def create_new_script_files(
             f.write(scr.content)
 
 
-def split_script(split_params: SplitParameters) -> None:
+def split_script_into_files(split_params: SplitParameters) -> None:
     """
     Splits script from `scripts_path` folder, from file `initial_script`.sql, into smaller files.
     Final script will be named `final_script`.sql.
@@ -311,18 +311,25 @@ def get_parameters_list_from_yaml() -> list[SplitParameters]:
     if not os.path.exists(yaml_path):
         raise Exception(f"YAML config file ({yaml_path}) does not exist.")
 
-    print(f"YAML path being loaded: {os.path.abspath(yaml_path)}")
-    with open(yaml_path, "r") as yaml_stream:
+    yaml_abs_path = os.path.abspath(yaml_path)
+    print(f"YAML path being loaded: {yaml_abs_path}")
+    with open(yaml_abs_path, "r") as yaml_stream:
         yaml_obj = yaml.safe_load(yaml_stream)
         print(yaml_obj)
+    yaml_root = os.path.dirname(yaml_abs_path)
 
     models_to_split: dict = yaml_obj.get("models_to_split", None)
 
     parameters_list: list[SplitParameters] = []
     if models_to_split:
         for model in models_to_split:
+            scripts_base_path: str = model.get("scripts_base_path", "")
+            is_relative = not os.path.isabs(scripts_base_path)
+            if is_relative:
+                scripts_base_path = os.path.join(yaml_root, scripts_base_path)
+
             parameters = SplitParameters(
-                model.get("scripts_base_path", None),
+                scripts_base_path,
                 model.get("initial_script", None),
                 model.get("final_script", None),
                 model.get("drop_intermediate", None),
@@ -357,9 +364,9 @@ if __name__ == "__main__":
     if type_of_parameters == "yaml":
         yaml_params = get_parameters_list_from_yaml()
         for params in yaml_params:
-            split_script(params)
+            split_script_into_files(params)
     elif type_of_parameters == "cmd":
         params = get_parameters_from_argv()
-        split_script(params)
+        split_script_into_files(params)
     else:
         raise Exception("Unknown type of parameters")

@@ -40,3 +40,10 @@ Example:
     yaml-path: $GITHUB_WORKSPACE/configs/sql_script_splitter.yaml
 
 ```
+
+# Development notes
+
+Performance testing was done using cProfile like this:
+`python -m cProfile -o p0.prof sql_script_splitter.py yaml`
+And results analyzed with Snakeviz:
+`snakeviz p0.prof`

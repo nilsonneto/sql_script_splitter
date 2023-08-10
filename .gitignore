@@ -161,3 +161,4 @@ cython_debug/
 
 # Own files
 sql_script_splitter.yaml
+*.prof
