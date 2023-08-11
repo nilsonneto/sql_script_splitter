@@ -81,12 +81,10 @@ class SmallScript:
                 break
 
         # When query is wrapped around parenthesis, remove them
-        first = new_query.split("\n", 1)[0].strip()
-        last = new_query.rsplit("\n", 1)[1].strip()
-        if first == "(" and last == ")":
-            no_first = new_query.split("\n", 1)[1]
-            no_last = no_first.rsplit("\n", 1)[0]
-            new_query = no_last
+        if new_query.strip().startswith("(") and new_query.strip().endswith(")"):
+            new_query = new_query.strip()[1:-1]
+            if new_query[0] == "\n":
+                new_query = new_query[1:]
 
         # Cleaning up trailing whitespaces
         clean_list = [line.rstrip() for line in new_query.splitlines()]
