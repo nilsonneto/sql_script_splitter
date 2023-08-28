@@ -11,6 +11,16 @@ class SmallScript:
     Class to hold information of each individual script of a larger script, that contains several CTEs
     """
 
+    # Common regex expression to find table names
+    # Will result in 3 main groups:
+    # 0: the table name with preceding whitespaces
+    # 1: the FROM or join keywords
+    # 2: just the table name, without whitespaces
+    re_expr = re.compile(
+        rf"(?<=(from|join))\s{{1,}}([a-zA-Z0-9_]{{1,}})",
+        re.IGNORECASE,
+    )
+
     def __init__(self, old_script: str, base_script: str, final_script: str) -> None:
         # Initial cleanup so metadata can be more easily extracted
         clean_script = self.clean_query(old_script)
@@ -48,10 +58,21 @@ class SmallScript:
         self.new_name = new_name
         self.is_intermediate = is_intermediate
         self.new_reference = f' {{{{ ref("{new_name}") }}}}'
-        self.re_expr = re.compile(rf"(?<=(from|join))\s{{1,}}{old_name}")
 
     def __str__(self):
         return f'{self.old_name} -> {self.new_name} ({"CTE" if self.is_intermediate else "last"}):\n{self.content}'
+
+    @staticmethod
+    def _ref_replace(ref_replace_map: dict, match: re.Match) -> str:
+        """
+        Regex function used when search for table names in a script, and replacing it with the DBT reference format
+        """
+        old_table: str = match.group(2)
+        new_table: str = ref_replace_map.get(
+            old_table,
+            f' {{{{ ref("{old_table}") }}}}',
+        )
+        return new_table
 
     @staticmethod
     def clean_query(query: str) -> str:
@@ -94,6 +115,16 @@ class SmallScript:
         new_query += "\n"
 
         return new_query
+
+    def rewrite_content_with_new_references(self, ref_replace_map: dict):
+        """
+        Rewrites it own content variable, replacing any table name with the DBT reference macro.
+        It uses the `ref_replace_map` to get the string in the DBT format.
+        """
+        self.content = self.re_expr.sub(
+            lambda match: self._ref_replace(ref_replace_map, match),
+            self.content,
+        )
 
 
 class SplitParameters:
@@ -244,14 +275,15 @@ def create_new_script_files(
     # Enable final model
     dbt_config = dbt_cfg_enable_table(dbt_config)
 
+    # Create old-to-new map
+    ref_replace_map = {}
+    for scr in scripts:
+        ref_replace_map[scr.old_name] = scr.new_reference
+
     # Write all CTEs and final model
     for scr in scripts:
         # Replace tables with ref macro
-        for ref_script in scripts:
-            scr.content = ref_script.re_expr.sub(
-                ref_script.new_reference,
-                scr.content,
-            )
+        scr.rewrite_content_with_new_references(ref_replace_map)
 
         # Add drop statements in last table, if enabled
         if drop_intermediate:
