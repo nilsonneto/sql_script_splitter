@@ -280,14 +280,14 @@ def create_new_script_files(
     for scr in scripts:
         ref_replace_map[scr.old_name] = scr.new_reference
 
+    # Add drop statements in last table, if enabled
+    if drop_intermediate:
+        dbt_config = dbt_cfg_add_drop(dbt_config, scripts)
+
     # Write all CTEs and final model
     for scr in scripts:
         # Replace tables with ref macro
         scr.rewrite_content_with_new_references(ref_replace_map)
-
-        # Add drop statements in last table, if enabled
-        if drop_intermediate:
-            dbt_config = dbt_cfg_add_drop(dbt_config, scripts)
 
         # Add DBT config to final tables
         if not scr.is_intermediate:
