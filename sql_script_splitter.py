@@ -144,11 +144,13 @@ class SplitParameters:
         initial_script: str,
         final_script: str,
         drop_intermediate: bool,
+        enable_last_model: bool,
     ) -> None:
         self.scripts_base_path = scripts_base_path
         self.initial_script = initial_script
         self.final_script = final_script
         self.drop_intermediate = drop_intermediate
+        self.enable_last_model = enable_last_model
 
 
 def get_individual_scripts_and_dbt_config(base_path: str, base_script: str):
@@ -266,6 +268,7 @@ def create_new_script_files(
     scripts: list[SmallScript],
     scripts_path: str,
     drop_intermediate: bool,
+    enable_last_model: bool,
     dbt_config: str,
 ) -> None:
     """
@@ -273,7 +276,8 @@ def create_new_script_files(
     If `drop_intermediate` is True, post-hook statements will be added to the DBT config of the final table.
     """
     # Enable final model
-    dbt_config = dbt_cfg_enable_table(dbt_config)
+    if enable_last_model:
+        dbt_config = dbt_cfg_enable_table(dbt_config)
 
     # Create old-to-new map
     ref_replace_map = {}
@@ -308,6 +312,7 @@ def split_script_into_files(split_params: SplitParameters) -> None:
     initial_script = split_params.initial_script
     final_script = split_params.final_script
     drop_intermediate = split_params.drop_intermediate
+    enable_last_model = split_params.enable_last_model
 
     scripts_path = find_model_path(scripts_base_path, initial_script)
     scripts, dbt_config = get_individual_scripts_and_dbt_config(
@@ -320,7 +325,9 @@ def split_script_into_files(split_params: SplitParameters) -> None:
 
     # Remove stale and recreate all script files
     delete_stale_scripts(scripts_path, initial_script, final_script)
-    create_new_script_files(small_scripts, scripts_path, drop_intermediate, dbt_config)
+    create_new_script_files(
+        small_scripts, scripts_path, drop_intermediate, enable_last_model, dbt_config
+    )
 
 
 def get_parameters_list_from_yaml() -> list[SplitParameters]:
@@ -363,6 +370,7 @@ def get_parameters_list_from_yaml() -> list[SplitParameters]:
                 model.get("initial_script", None),
                 model.get("final_script", None),
                 model.get("drop_intermediate", None),
+                model.get("enable_last_model", True),
             )
             parameters_list.append(parameters)
 
@@ -374,7 +382,7 @@ def get_parameters_from_argv() -> SplitParameters:
     Reads `sys.argv` and extract all parameters to be used in the main function.
     """
 
-    if len(sys.argv) < 6:
+    if len(sys.argv) < 7:
         raise Exception("Invalid number of arguments.")
 
     # Script name will be sys.argv[0]
@@ -384,6 +392,7 @@ def get_parameters_from_argv() -> SplitParameters:
         initial_script=sys.argv[3],
         final_script=sys.argv[4],
         drop_intermediate=sys.argv[5].lower() == "true",
+        enable_last_model=sys.argv[6].lower() == "true",
     )
 
     return parameters
